@@ -1,5 +1,4 @@
 import fs from 'fs';
-// pathはNext.jsのAPI Routeでは require() でインポートするのが確実
 const path = require('path');
 import * as XLSX from 'xlsx';
 
