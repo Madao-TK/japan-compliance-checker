@@ -6,8 +6,14 @@ import * as XLSX from 'xlsx';
 export default function handler(req, res) {
   try {
     // 1. ファイルパスの特定
-    // Note: process.cwd()でプロジェクトルートからファイルを探す
-    const filePath = path.join(process.cwd(), 'data', 'raw', 'bousai_data.xlsx');
+   // 確実なパス指定: プロジェクトルートからの絶対パスを解決する
+    const filePath = path.resolve(process.cwd(), 'data', 'raw', 'bousai_data.xlsx');
+
+    // 【重要】ファイル名の修正: あなたがプッシュしたファイル名と正確に一致させる
+    // 以前のコミットログでは日本語のファイル名でした。ここでは半角英数字に直したと仮定します。
+    // もしファイル名が違っていたら、以下の 'bousai_data.xlsx' を正しいファイル名に修正してください。
+
+    // ... (以降の fs.existsSync(filePath) や fs.readFileSync(filePath, ...) はこの filePath を使う)
     
     // 2. ファイルの存在確認
     if (!fs.existsSync(filePath)) {
