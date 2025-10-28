@@ -1,5 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+// pathはNext.jsのAPI Routeでは require() でインポートするのが確実
+const path = require('path');
 import * as XLSX from 'xlsx';
 
 // Next.jsのAPI Routeのエクスポート関数
