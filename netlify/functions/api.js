@@ -1,47 +1,76 @@
-import fs from 'fs';
+const fs = require('fs');
 const path = require('path');
-import * as XLSX from 'xlsx';
+const XLSX = require('xlsx'); // CommonJS形式に変更
 
-// Next.jsのAPI Routeのエクスポート関数
-export default function handler(req, res) {
-  try {
-    // 1. ファイルパスの特定
-   // 確実なパス指定: プロジェクトルートからの絶対パスを解決する
-    const filePath = path.resolve(process.cwd(), 'data', 'raw', 'bousai_data.xlsx');
-
-    // 【重要】ファイル名の修正: あなたがプッシュしたファイル名と正確に一致させる
-    // 以前のコミットログでは日本語のファイル名でした。ここでは半角英数字に直したと仮定します。
-    // もしファイル名が違っていたら、以下の 'bousai_data.xlsx' を正しいファイル名に修正してください。
-
-    // ... (以降の fs.existsSync(filePath) や fs.readFileSync(filePath, ...) はこの filePath を使う)
-    
-    // 2. ファイルの存在確認
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Data file not found at: ' + filePath });
-    }
-
-    // 3. Excelファイルをバイナリ形式で読み込み
-    const fileBuffer = fs.readFileSync(filePath, { encoding: 'binary' });
-    
-    // 4. XLSXライブラリでブックを解析
-    const workbook = XLSX.read(fileBuffer, { type: 'binary' });
-    
-    // ★次のステップで処理を行うシート名を特定する
-    const sheetName = workbook.SheetNames[0]; // とりあえず最初のシート名を取得
-    const worksheet = workbook.Sheets[sheetName];
-
-    // 5. Excelの内容をJSON配列として抽出 (ヘッダー含む)
-    const jsonOutput = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-    
-    // 6. 成功レスポンスとして返す (読み込み成功の確認用)
-    res.status(200).json({ 
-        message: 'File loaded successfully. Check the "data" for content.',
-        sheetName: sheetName,
-        data_preview: jsonOutput.slice(0, 5) // 最初の5行だけをプレビュー
+// Netlify Functionの標準ハンドラー (exports.handler)
+exports.handler = async (event, context) => {
+    // 成功レスポンスを返すヘルパー関数
+    const successResponse = (data) => ({
+        statusCode: 200,
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
     });
 
-  } catch (error) {
-    console.error('API Error:', error);
-    res.status(500).json({ error: 'Failed to process data.', details: error.message });
-  }
-}
+    // 失敗レスポンスを返すヘルパー関数
+    const errorResponse = (message, status = 500) => ({
+        statusCode: status,
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ error: message }),
+    });
+
+    // --- 1. ファイルパスの解決 ---
+    const filePath = path.resolve(process.cwd(), 'data', 'raw', 'bousai_data.xlsx');
+
+    if (!fs.existsSync(filePath)) {
+        // res.status(500)ではなく、return errorResponse(..., 500) を使う
+        return errorResponse('Data file not found on the server: ' + filePath, 404);
+    }
+
+    try {
+        // --- 2. Excelファイルの読み込み ---
+        const fileBuffer = fs.readFileSync(filePath, { encoding: 'binary' });
+        const workbook = XLSX.read(fileBuffer, { type: 'binary' });
+
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        // --- 3. GeoJSONへのデータ変換 ---
+        const geoJsonFeatures = data.map(row => {
+            const latitude = parseFloat(row['北緯']);
+            const longitude = parseFloat(row['東経']);
+
+            if (isNaN(latitude) || isNaN(longitude) || latitude === 0 || longitude === 0) {
+                return null;
+            }
+
+            return {
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [longitude, latitude],
+                },
+                properties: {
+                    name: row['施設名'],
+                    ...row 
+                },
+            };
+        }).filter(feature => feature !== null);
+
+        const geoJson = {
+            type: 'FeatureCollection',
+            features: geoJsonFeatures,
+        };
+
+        // --- 4. 成功レスポンスを返す ---
+        return successResponse(geoJson);
+
+    } catch (error) {
+        console.error('API Error:', error);
+        return errorResponse(`Failed to process Excel data: ${error.message}`);
+    }
+};
