@@ -5,28 +5,20 @@ const XLSX = require('xlsx'); // CommonJS形式に変更
 // Netlify Functionの標準ハンドラー (exports.handler)
 exports.handler = async (event, context) => {
     // 成功レスポンスを返すヘルパー関数
-    const successResponse = (data) => ({
-        statusCode: 200,
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-    });
+    // ... [successResponse, errorResponse の定義はそのまま] ...
 
-    // 失敗レスポンスを返すヘルパー関数
-    const errorResponse = (message, status = 500) => ({
-        statusCode: status,
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ error: message }),
-    });
-
-    // --- 1. ファイルパスの解決 ---
-    const filePath = path.resolve(process.cwd(), 'data', 'raw', 'bousai_data.xlsx');
+    // --- 1. ファイルパスの解決 (絶対確実な方法に修正) ---
+    // Netlifyのビルド環境変数 NETLIFY_LAMBDA_ZIP_FILE を利用し、ルートからのパスを解決
+    // 環境変数があればそれを利用、なければプロセスルートを利用する
+    const rootDir = process.env.LAMBDA_TASK_ROOT || process.cwd();
+    
+    // rootDir から 'data/raw/bousai_data.xlsx' へのパスを結合
+    const filePath = path.join(rootDir, 'data', 'raw', 'bousai_data.xlsx');
+    
+    // 
 
     if (!fs.existsSync(filePath)) {
-        // res.status(500)ではなく、return errorResponse(..., 500) を使う
+        // デバッグ情報として、Functionが探したパスをエラーメッセージに含める
         return errorResponse('Data file not found on the server: ' + filePath, 404);
     }
 
