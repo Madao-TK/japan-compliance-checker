@@ -3,6 +3,8 @@
 [build]
   command = "npm run build"
   publish = "out"
+  # API Functionの出力先を明示的に指定
+  functions = "netlify/functions"
   
 [[plugins]]
   package = "@netlify/plugin-nextjs"
