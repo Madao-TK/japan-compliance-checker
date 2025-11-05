@@ -3,8 +3,14 @@
 [build]
   command = "npm run build"
   publish = "out"
-  # API Functionの出力先を明示的に指定
-  functions = "netlify/functions"
   
+# Functionの設定
+[functions]
+  directory = "netlify/functions"
+  
+  # 【最終的な修正】Functionに同梱するファイルを明示的に指定
+  # data/raw フォルダをFunctionの実行環境にコピーするよう指示
+  included_files = ["data/raw/bousai_data.xlsx"]
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
