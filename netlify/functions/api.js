@@ -1,24 +1,33 @@
 const fs = require('fs');
 const path = require('path');
-const XLSX = require('xlsx'); // CommonJS形式に変更
+const XLSX = require('xlsx'); 
 
 // Netlify Functionの標準ハンドラー (exports.handler)
 exports.handler = async (event, context) => {
-    // 成功レスポンスを返すヘルパー関数
-    // ... [successResponse, errorResponse の定義はそのまま] ...
 
-    // --- 1. ファイルパスの解決 (絶対確実な方法に修正) ---
-    // Netlifyのビルド環境変数 NETLIFY_LAMBDA_ZIP_FILE を利用し、ルートからのパスを解決
-    // 環境変数があればそれを利用、なければプロセスルートを利用する
+    // 【修正箇所】ヘルパー関数をハンドラーの内部に移動
+    const successResponse = (data) => ({
+        statusCode: 200,
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+    });
+
+    const errorResponse = (message, status = 500) => ({
+        statusCode: status,
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ error: message }),
+    });
+    // 【修正箇所ここまで】
+    
+    // --- 1. ファイルパスの解決 ---
     const rootDir = process.env.LAMBDA_TASK_ROOT || process.cwd();
-    
-    // rootDir から 'data/raw/bousai_data.xlsx' へのパスを結合
     const filePath = path.join(rootDir, 'data', 'raw', 'bousai_data.xlsx');
-    
-    // 
 
     if (!fs.existsSync(filePath)) {
-        // デバッグ情報として、Functionが探したパスをエラーメッセージに含める
         return errorResponse('Data file not found on the server: ' + filePath, 404);
     }
 
@@ -33,6 +42,7 @@ exports.handler = async (event, context) => {
 
         // --- 3. GeoJSONへのデータ変換 ---
         const geoJsonFeatures = data.map(row => {
+            // 列名: 緯度='北緯', 経度='東経'
             const latitude = parseFloat(row['北緯']);
             const longitude = parseFloat(row['東経']);
 
@@ -44,7 +54,7 @@ exports.handler = async (event, context) => {
                 type: 'Feature',
                 geometry: {
                     type: 'Point',
-                    coordinates: [longitude, latitude],
+                    coordinates: [longitude, latitude], // [東経, 北緯]
                 },
                 properties: {
                     name: row['施設名'],
