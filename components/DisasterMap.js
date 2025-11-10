@@ -1,74 +1,77 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Popup, Marker } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css'; 
+import React, { useState, useEffect, useMemo } from 'react';
+import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// Leafletのアイコンが壊れる問題への対策
+// ... [アイコン設定と初期値の定義は省略] ...
 delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: markerIcon2x.src,
-    iconUrl: markerIcon.src,
-    shadowUrl: markerShadow.src,
-});
+// ... [アイコン設定はそのまま] ...
 
-// 初期表示位置 (日本の中心付近)
 const INITIAL_CENTER = [35.6895, 139.6917]; 
 const INITIAL_ZOOM = 6;
 
-// ★追加: 規模に応じたマーカーのスタイルを定義
+// 規模に応じたマーカーのスタイルを定義 (昨日のコードそのまま)
 const featureStyle = (feature) => {
     switch (feature.properties.size_category) {
-        case 'large': // 大規模 (500人以上)
-            return { color: '#dc3545', fillColor: '#dc3545', weight: 1, fillOpacity: 0.8, radius: 8 }; // 赤
-        case 'medium': // 中規模 (100人以上)
-            return { color: '#ffc107', fillColor: '#ffc107', weight: 1, fillOpacity: 0.8, radius: 6 }; // 黄
-        case 'small': // 小規模 (100人未満)
-            return { color: '#007bff', fillColor: '#007bff', weight: 1, fillOpacity: 0.8, radius: 4 }; // 青
-        default:
-            return { color: '#6c757d', fillColor: '#6c757d', weight: 1, fillOpacity: 0.8, radius: 4 }; // 灰色
+        case 'large': return { color: '#dc3545', fillColor: '#dc3545', weight: 1, fillOpacity: 0.8, radius: 8 };
+        case 'medium': return { color: '#ffc107', fillColor: '#ffc107', weight: 1, fillOpacity: 0.8, radius: 6 };
+        case 'small': return { color: '#007bff', fillColor: '#007bff', weight: 1, fillOpacity: 0.8, radius: 4 };
+        default: return { color: '#6c757d', fillColor: '#6c757d', weight: 1, fillOpacity: 0.8, radius: 4 };
     }
 };
 
 const DisasterMap = () => {
-    const [geoJsonData, setGeoJsonData] = useState(null);
+    const [fullGeoJsonData, setFullGeoJsonData] = useState(null); // 全データ
+    const [districtList, setDistrictList] = useState([]); // 行政区リスト
+    const [selectedDistrict, setSelectedDistrict] = useState(''); // 選択された行政区
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // バックエンドからGeoJSONデータを取得する
+    // APIからデータを取得
     useEffect(() => {
         const API_URL = '/.netlify/functions/api';
 
         fetch(API_URL)
             .then(res => {
-                if (!res.ok) {
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
                 return res.json();
             })
             .then(data => {
-                setGeoJsonData(data);
+                // ★修正: data.geoJsonとdata.districtsの両方を受け取る
+                setFullGeoJsonData(data.geoJson);
+                setDistrictList(data.districts);
                 setLoading(false);
             })
             .catch(err => {
                 console.error("Failed to fetch GeoJSON data:", err);
-                setError("防災データの読み込みに失敗しました。APIを確認してください。");
+                setError("データの読み込みに失敗しました。");
                 setLoading(false);
             });
     }, []);
 
+    // ★追加: 選択された行政区に基づいて表示するデータをフィルタリング
+    const filteredGeoJson = useMemo(() => {
+        if (!fullGeoJsonData) return null;
+        if (!selectedDistrict) return fullGeoJsonData; // 選択がなければ全表示
+
+        const filteredFeatures = fullGeoJsonData.features.filter(feature => 
+            feature.properties['行政区'] === selectedDistrict
+        );
+
+        return { ...fullGeoJsonData, features: filteredFeatures };
+
+    }, [fullGeoJsonData, selectedDistrict]); // データと選択が変わるたびに再計算
+
+    // ... [ローディングとエラー表示のロジックは省略] ...
     if (loading) return <p>防災データを読み込み中...</p>;
     if (error) return <p style={{ color: 'red' }}>エラーが発生しました: {error}</p>;
-    if (!geoJsonData || geoJsonData.features.length === 0) return <p>地図上に表示できるデータがありません。</p>;
+    if (!filteredGeoJson || filteredGeoJson.features.length === 0) return <p>地図上に表示できるデータがありません。</p>;
 
-    // GeoJSONの各 Feature (地点) が地図に描画される際の挙動を定義
+    // GeoJSONの各 Feature (地点) が地図に描画される際の挙動を定義 (昨日のコードそのまま)
     const onEachFeature = (feature, layer) => {
         if (feature.properties && feature.properties.name) {
             const { name, '北緯': lat, '東経': lng, capacity, affiliate_placeholder, size_category } = feature.properties;
-            
-            // ★修正: ポップアップに収容人数とアフィリエイト誘導を追加
+
             const popupContent = `
                 <b>施設名: ${name} (${size_category === 'large' ? '大規模' : size_category === 'medium' ? '中規模' : '小規模'})</b><br/>
                 最大収容人数: ${capacity}人<br/>
@@ -77,25 +80,40 @@ const DisasterMap = () => {
                 <p style="font-size: 0.9em; margin: 0;">自宅の**水災・火災リスク**をチェックし、最適な保険を選びましょう。</p>
                 <a href="${affiliate_placeholder}" target="_blank" style="color: #dc3545; font-weight: bold;">→ リスク評価と無料保険相談へ (広告)</a>
             `;
-            
+
             layer.bindPopup(popupContent);
         }
     };
-    
+
     // GeoJSONをポイントレイヤーとして描画するための関数
     const pointToLayer = (feature, latlng) => {
-        // Simple circle marker (円形のマーカー) を使用
         return L.circleMarker(latlng, featureStyle(feature));
     };
 
 
     return (
-        <div style={{ height: '600px', width: '100%' }}>
+        <div style={{ padding: '0 0 20px 0' }}>
+            {/* ★追加: 絞り込み UI */}
+            <div style={{ marginBottom: '15px' }}>
+                <label htmlFor="district-select" style={{ fontWeight: 'bold' }}>行政区で絞り込み:</label>
+                <select 
+                    id="district-select"
+                    value={selectedDistrict}
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                    style={{ marginLeft: '10px', padding: '5px', borderRadius: '4px', border: '1px solid #ccc' }}
+                >
+                    <option value="">--- 全ての行政区 ---</option>
+                    {districtList.map(district => (
+                        <option key={district} value={district}>{district}</option>
+                    ))}
+                </select>
+            </div>
+            {/* 地図コンテナ */}
             <MapContainer 
                 center={INITIAL_CENTER} 
                 zoom={INITIAL_ZOOM} 
                 scrollWheelZoom={true}
-                style={{ height: '100%', width: '100%' }}
+                style={{ height: '600px', width: '100%' }}
             >
                 {/* ベースマップ：OpenStreetMap */}
                 <TileLayer
@@ -104,12 +122,13 @@ const DisasterMap = () => {
                 />
 
                 {/* GeoJSONデータを地図上に描画 */}
-                <GeoJSON 
-                    data={geoJsonData} 
-                    onEachFeature={onEachFeature} 
-                    pointToLayer={pointToLayer} // 円形マーカーを描画
-                />
-
+                {filteredGeoJson && (
+                    <GeoJSON 
+                        data={filteredGeoJson} 
+                        onEachFeature={onEachFeature} 
+                        pointToLayer={pointToLayer} 
+                    />
+                )}
             </MapContainer>
         </div>
     );

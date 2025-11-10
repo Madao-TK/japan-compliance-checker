@@ -80,8 +80,16 @@ exports.handler = async (event, context) => {
             features: geoJsonFeatures,
         };
 
+        // ★修正1: 行政区のユニークなリストを抽出
+        const allDistricts = geoJsonFeatures.map(f => f.properties['行政区']).filter(Boolean);
+        const uniqueDistricts = [...new Set(allDistricts)].sort(); // 重複を削除し、ソート
+
         // --- 4. 成功レスポンスを返す ---
-        return successResponse(geoJson);
+        // ★修正2: successResponseに GeoJSON と リスト の両方をオブジェクトとして渡す
+        return successResponse({
+            geoJson: geoJson,
+            districts: uniqueDistricts 
+        });
 
     } catch (error) {
         console.error('API Error:', error);
