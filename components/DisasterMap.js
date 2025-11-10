@@ -55,8 +55,10 @@ const DisasterMap = () => {
         if (!selectedDistrict) return fullGeoJsonData; // 選択がなければ全表示
 
         const filteredFeatures = fullGeoJsonData.features.filter(feature => 
-            feature.properties['行政区'] === selectedDistrict
-        );
+        // 修正: Excelの列名 '行政区' がGeoJSONのプロパティとして存在するか確認
+        // trim() を使い、前後のスペースを取り除くことでデータ不一致を防ぐ
+        feature.properties['行政区'] && feature.properties['行政区'].trim() === selectedDistrict.trim()
+    );
 
         return { ...fullGeoJsonData, features: filteredFeatures };
 
