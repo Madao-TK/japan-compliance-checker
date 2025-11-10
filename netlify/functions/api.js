@@ -44,14 +44,19 @@ exports.handler = async (event, context) => {
             const latitude = parseFloat(row['北緯']);
             const longitude = parseFloat(row['東経']);
             
-            // ★追加: 収容人数を数値として取得
+            // 収容人数を数値として取得
             const capacity = parseInt(row['最大収容人数'], 10) || 0;
 
             if (isNaN(latitude) || isNaN(longitude) || latitude === 0 || longitude === 0) {
                 return null;
             }
             
-            // ★追加: 収容人数に基づいた規模区分を決定
+            // ★この部分で行政区データをクリーンアップしています
+            // Excelデータが数値の場合に備えてString()で変換後、trim()で前後の空白を削除
+            const districtName = row['行政区'] ? String(row['行政区']).trim() : '';
+            const associationName = row['自主防災会名'] ? String(row['自主防災会名']).trim() : '';
+            
+            // 収容人数に基づいた規模区分を決定
             let size_category = 'small'; // 最小規模（デフォルト）
             if (capacity >= 500) {
                 size_category = 'large'; // 500人以上: 大規模
@@ -70,6 +75,8 @@ exports.handler = async (event, context) => {
                     capacity: capacity, // 収容人数を追加
                     size_category: size_category, // 規模区分を追加
                     affiliate_placeholder: 'https://[あなたの保険アフィリエイトリンク]', // 収益化プレースホルダー
+                    '行政区': districtName,      // ★クリーンな値を使用
+                    '自主防災会名': associationName, // ★クリーンな値を使用
                     ...row 
                 },
             };
@@ -80,15 +87,14 @@ exports.handler = async (event, context) => {
             features: geoJsonFeatures,
         };
 
-        // ★修正1: 行政区のユニークなリストを抽出
+        // ★この部分で行政区リストを抽出しています
         const allDistricts = geoJsonFeatures.map(f => f.properties['行政区']).filter(Boolean);
-        const uniqueDistricts = [...new Set(allDistricts)].sort(); // 重複を削除し、ソート
+        const uniqueDistricts = [...new Set(allDistricts)].sort();
 
-        // --- 4. 成功レスポンスを返す ---
-        // ★修正2: successResponseに GeoJSON と リスト の両方をオブジェクトとして渡す
+        // --- 4. 成功レスポンスを返す (GeoJSONとリストを同梱) ---
         return successResponse({
             geoJson: geoJson,
-            districts: uniqueDistricts 
+            districts: uniqueDistricts // リストをフロントエンドに渡す
         });
 
     } catch (error) {
